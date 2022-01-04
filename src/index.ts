@@ -55,9 +55,7 @@ async function init() {
   myCode = settings["connectcode"];
 
   docRef = doc(fs, "scoreboard", packageKey, pageKey, "fields")
-
   console.log("loaded config");
-  // console.log(settings);
 
   replayWatcher = chokidar.watch(`${slippiFolder}\\**\\*.slp`,
         {
@@ -97,7 +95,6 @@ function watchForNewReplays(path: string, stats: string) {
 function trackNewGame() {
   // Get game settings – stage, characters, etc
   const settings = currentGame.getSettings();
-  // console.log(settings);
 
   if (settings === null) {
       console.log("No game found");
@@ -105,10 +102,8 @@ function trackNewGame() {
   else {
       currentGameSettings = settings;
       $MM.setSettingsStatus("slippistatus", "Tracking game")
-      let t = getScoreboard();
-      t.then(x => {
-          console.log(x);
-          setNames(x, settings);
+      getScoreboard().then(sb => {
+          setNames(sb, settings);
       });
   }
 }
@@ -218,7 +213,6 @@ function updateWinner(end: GameEndType) {
 
 function GameListener(event: string) {
   try {
-      // console.log("changed");
       const end = currentGame.getGameEnd();
       if (end) {
           console.log("Game ended");
@@ -232,8 +226,6 @@ function GameListener(event: string) {
   }
 }
 
-
-
 const runButton = new ButtonType("RunButton", {
   name: "Toggle slippi tracking",
   active: false,
@@ -245,11 +237,7 @@ runButton.on("pressed", () => {
     // activate tracking
     $MM.setSettingsStatus("slippistatus", "Waiting for game")
   
-    init().then(() => {
-      getScoreboard().then(x => {
-        console.log(x);
-      });
-    });
+    init();
   }
   else {
     // deactivate tracking
