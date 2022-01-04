@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/midi-mixer-plugin/plugin.schema.json",
+  "version": "1.0.0",
+  "id": "ca.jaggernaut.midi-mixer.slippi-scoreboard",
+  "name": "Slippi plugin",
+  "type": "node",
+  "main": "lib/index.js",
+  "icon": "slippi.ico",
+  "settings": {
+    "slippistatus": {
+      "label": "Slippi Status",
+      "type": "status",
+      "fallback": "Not running"
+    },
+    "packagekey":{
+      "label": "Package Key",
+      "required": true,
+      "type": "password",
+      "fallback": "No API Key"
+    },
+    "pagekey":{
+      "label": "Page Key",
+      "required": true,
+      "type": "password",
+      "fallback": "No API Key"
+    },
+    "connectcode":{
+      "label": "Connect Code",
+      "required": true,
+      "type": "text",
+      "fallback": "No Code"
+    },
+    "slippidirectory":{
+      "label": "Slippi Directory",
+      "required": true,
+      "type": "text",
+      "fallback": "No directory"
+    }
+  },
+  "author": "Jaggernaut"
+}
