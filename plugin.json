@@ -2,7 +2,7 @@
   "$schema": "./node_modules/midi-mixer-plugin/plugin.schema.json",
   "version": "1.0.0",
   "id": "ca.jaggernaut.midi-mixer.slippi-scoreboard",
-  "name": "Slippi plugin",
+  "name": "Slippi Scoreboard",
   "type": "node",
   "main": "lib/index.js",
   "icon": "slippi.ico",

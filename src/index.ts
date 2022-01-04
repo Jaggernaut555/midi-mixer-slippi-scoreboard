@@ -232,13 +232,7 @@ function GameListener(event: string) {
   }
 }
 
-const fakeAssignment = new Assignment("Rando", {
-  name: "Fake assignment"
-})
 
-fakeAssignment.on("volumeChanged", (level:number) => {
-  fakeAssignment.volume = level;
-})
 
 const runButton = new ButtonType("RunButton", {
   name: "Toggle slippi tracking",
