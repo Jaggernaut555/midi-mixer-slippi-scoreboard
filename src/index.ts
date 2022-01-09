@@ -76,7 +76,16 @@ async function deactivate() {
 
 function watchForNewReplays(path: string, stats: string) {
   console.log("New game found")
-  currentGame = new SlippiGame(path, { processOnTheFly: true });
+  let game = new SlippiGame(path, { processOnTheFly: true });
+
+  // Don't track games that are already over
+  const end = game.getGameEnd();
+  if (end) {
+    console.log("Skipping completed game");
+    return;
+  }
+
+  currentGame = game;
   let gamePath = currentGame.getFilePath();
   console.log(gamePath);
   trackNewGame();
