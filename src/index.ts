@@ -209,10 +209,6 @@ async function setNames(data: scoreboard, gameSettings: GameStartType) {
 
 
   await updateScoreboard(docRef, data);
-
-  // testing
-  updateWinner(docRef, currentGame);
-  return;
 }
 
 
