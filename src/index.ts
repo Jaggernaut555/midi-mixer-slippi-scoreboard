@@ -4,6 +4,8 @@ import { getFirestore, getDoc, setDoc, doc, DocumentReference, DocumentData } fr
 import { GameEndType, GameStartType, SlippiGame } from "@slippi/slippi-js";
 import chokidar from 'chokidar';
 import _ from 'lodash';
+import { getScoreboard, resetScore, updateScoreboard } from "./scoreboard";
+import { determineWinner, updateWinner } from "./winner";
 
 /*
 From thread: http://8wr.io/threads/external-access-to-modify-fields-via-api.40/
@@ -11,7 +13,7 @@ Database: eightway-io
 Snapshot: scoreboard/<your_package_id>/<your_page_id>/fields
 */
 
-interface scoreboard {
+export interface scoreboard {
   // set score
   sets_1s: number,
   sets_1: string | null,
@@ -40,7 +42,6 @@ let fs = getFirestore(fb);
 let docRef: DocumentReference<DocumentData>;
 
 let currentGame: SlippiGame
-let currentGameSettings: GameStartType
 let currentGameWatcher: chokidar.FSWatcher;
 let myCode: string;
 let replayWatcher: chokidar.FSWatcher | null;
@@ -88,7 +89,15 @@ function watchForNewReplays(path: string, stats: string) {
   currentGame = game;
   let gamePath = currentGame.getFilePath();
   console.log(gamePath);
-  trackNewGame();
+
+  try {
+    trackNewGame();
+  }
+  catch (err) {
+    console.log(err);
+    log.error(err);
+    return;
+  }
 
   if (currentGameWatcher) {
     currentGameWatcher.off('change', GameListener);
@@ -109,116 +118,103 @@ function trackNewGame() {
       console.log("No game found");
   }
   else {
-      currentGameSettings = settings;
       $MM.setSettingsStatus("slippistatus", "Tracking game")
-      getScoreboard().then(sb => {
+      getScoreboard(docRef).then(sb => {
           setNames(sb, settings);
       });
   }
 }
 
-async function getScoreboard(): Promise<scoreboard> {
-  const scoreSnapshot = await getDoc(docRef);
-  if (scoreSnapshot.exists()) {
-      return scoreSnapshot.data() as scoreboard;
+export function getMyIndex(slippiData: GameStartType): number {
+  for(let player of slippiData.players) {
+    if (player.connectCode == myCode) {
+      return player.port - 1;
+    }
   }
-  else {
-      console.log("failed");
-  }
-  return null as any;
-}
-
-function getMyIndex(slippiData: GameStartType): number {
-  if (slippiData.players[0].connectCode != myCode) {
-      return 1;
-  }
+  // If I'm not there default to 0
   return 0;
 }
 
-async function setNames(data: scoreboard, slippiData: GameStartType) {
+export function getMyPort(slippiData: GameStartType): number {
+  for(let player of slippiData.players) {
+    if (player.connectCode == myCode) {
+      return player.port;
+    }
+  }
+  // If I'm not there default to 1
+  return 1;
+}
+
+export function getTeamIndex(pIndex: number): number {
+  if (pIndex < 2) {
+    return 0;
+  }
+  return 1;
+}
+
+export function getTeams(playerPort: number, slippiData: GameStartType) {
+  let players = slippiData.players;
+
+  let playerTeam = players.find((p) => {
+    return p.port == playerPort
+  })?.teamId ?? 0;
+
+  let teamA = players.filter((p) => {
+    return p.teamId == playerTeam;
+  });
+  let teamB = players.filter((p) => {
+    return p.teamId != playerTeam;
+  });
+
+  return [teamA, teamB];
+}
+
+async function setNames(data: scoreboard, gameSettings: GameStartType) {
   // Check if sets names are player connect codes
   // If new names reset set and score counts
   // Prefer my code on players_1 side
-  let myIndex = getMyIndex(slippiData);
-  let theirIndex = 1 - myIndex;
 
-  if (data.sets_2 != slippiData.players[theirIndex].connectCode
-      || data.sets_1 != myCode) {
+  let myIndex = getMyIndex(gameSettings);
+
+  if (gameSettings.players.length === 4) {
+    // teams
+    // Can be any order
+    let myPort = getMyPort(gameSettings)
+
+    let [myTeam, theirTeam] = getTeams(myPort, gameSettings);
+
+    if (data.sets_1 != myTeam[0].connectCode || data.sets_2 != theirTeam[0].connectCode) {
       resetScore(data);
-      data.players_1 = slippiData.players[myIndex].displayName;
-      data.sets_1 = slippiData.players[myIndex].connectCode;
-      data.players_2 = slippiData.players[theirIndex].displayName;
-      data.sets_2 = slippiData.players[theirIndex].connectCode;
+
+      data.players_1 = myTeam.map((player) => { return player.displayName }).join(" + ")
+      data.sets_1 = myTeam[0].connectCode;
+
+      data.players_2 = theirTeam.map((player) => { return player.displayName }).join(" + ")
+      data.sets_2 = theirTeam[0].connectCode;
+    }
+  }
+  else {
+    // Only 2 players
+    let theirIndex = 1 - myIndex;
+  
+    if (data.sets_2 != gameSettings.players[theirIndex].connectCode
+        || data.sets_1 != gameSettings.players[myIndex].connectCode) {
+        resetScore(data);
+        data.players_1 = gameSettings.players[myIndex].displayName;
+        data.sets_1 = gameSettings.players[myIndex].connectCode;
+        data.players_2 = gameSettings.players[theirIndex].displayName;
+        data.sets_2 = gameSettings.players[theirIndex].connectCode;
+    }
   }
 
-  await setDoc(docRef, data);
+
+  await updateScoreboard(docRef, data);
+
+  // testing
+  updateWinner(docRef, currentGame);
+  return;
 }
 
-function resetScore(data: scoreboard) {
-  data.sets_1s = 0;
-  data.sets_2s = 0;
-  data.players_1s = 0;
-  data.players_2s = 0;
-}
-
-/// Return index of winner (0/1) or unknown (-1)
-function determineWinner(end: GameEndType): number {
-  const myIndex = getMyIndex(currentGameSettings);
-  const theirIndex = 1 - myIndex;
-  const latestFrame = _.get(currentGame.getLatestFrame(), 'players') || [];
-  const playerStocks = _.get(latestFrame, [myIndex, 'post', 'stocksRemaining']);
-  const oppStocks = _.get(latestFrame, [theirIndex, 'post', 'stocksRemaining']);
-  switch(end.gameEndMethod) {
-      case 1:
-          // Time out
-          // could determine stocks/percent
-          return -1;
-      case 2:
-          // Someone won on stocks
-          if (playerStocks === 0 && oppStocks === 0) {
-              // Can this happen?
-              return -1;
-          }
-      
-          return playerStocks === 0 ? theirIndex : myIndex;
-      case 7:
-          // Someone pressed L+R+A+Start
-          // if only 1 player at 1 stock they probably lost
-          if (playerStocks === 1 && !(oppStocks === 1)) {
-              return theirIndex;
-          }
-          else if (!(playerStocks === 1) && oppStocks === 1) {
-              return myIndex;
-          }
-          // If nobody was at 1 stock there's no winner
-          return -1;
-  }
-  return -1;
-}
-
-function updateWinner(end: GameEndType) {
-  // determine which index won
-  let i = determineWinner(end);
-  if (i < 0 || i > 1)
-  {
-      console.log("Unknown winner");
-      return;
-  }
-  // get scoreboard
-  // increase score
-  getScoreboard().then((s) => {
-      const myIndex = getMyIndex(currentGameSettings);
-      if (i === myIndex) {
-          // I win
-          s.players_1s += 1;
-      }
-      else {
-          // they win
-          s.players_2s += 1;
-      }
-      setDoc(docRef, s);
-  });
-}
 
 function GameListener(event: string) {
   try {
@@ -226,7 +222,7 @@ function GameListener(event: string) {
       if (end) {
           console.log("Game ended");
           $MM.setSettingsStatus("slippistatus", "Waiting for game")
-          updateWinner(end);
+          updateWinner(docRef, currentGame);
           currentGameWatcher.off('change', GameListener);
       }
   }
