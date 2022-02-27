@@ -1,7 +1,7 @@
 import { Assignment, ButtonType } from "midi-mixer-plugin";
 import { FirebaseOptions, initializeApp } from 'firebase/app';
 import { getFirestore, getDoc, setDoc, doc, DocumentReference, DocumentData } from 'firebase/firestore/lite';
-import { GameEndType, GameStartType, SlippiGame } from "@slippi/slippi-js";
+import { GameEndType, GameStartType, SlippiGame, characters, PlayerType } from "@slippi/slippi-js";
 import chokidar from 'chokidar';
 import _ from 'lodash';
 import { getScoreboard, resetScore, updateScoreboard } from "./scoreboard";
@@ -169,6 +169,15 @@ export function getTeams(playerPort: number, slippiData: GameStartType) {
   return [teamA, teamB];
 }
 
+function getCharacterInfo(player: PlayerType): string {
+  if (player.characterId === null || player.characterColor === null) {
+    return "";
+  }
+  let character = characters.getCharacterShortName(player.characterId);
+  let color = characters.getCharacterColorName(player.characterId, player.characterColor);
+  return `${player.displayName}||${character}||${color}`;
+}
+
 async function setNames(data: scoreboard, gameSettings: GameStartType) {
   // Check if sets names are player connect codes
   // If new names reset set and score counts
@@ -183,14 +192,24 @@ async function setNames(data: scoreboard, gameSettings: GameStartType) {
 
     let [myTeam, theirTeam] = getTeams(myPort, gameSettings);
 
-    if (data.sets_1 != myTeam[0].connectCode || data.sets_2 != theirTeam[0].connectCode) {
+    // Create codes for each team
+    let myTeamCode = myTeam.map((player) => {
+      return player.connectCode;
+    }).join("&&");
+    let theirTeamCode = theirTeam.map((player) => {
+      return player.connectCode;
+    }).join("&&");
+
+    if (data.sets_1 != myTeamCode || data.sets_2 != theirTeamCode) {
       resetScore(data);
 
-      data.players_1 = myTeam.map((player) => { return player.displayName }).join(" + ")
-      data.sets_1 = myTeam[0].connectCode;
+      data.players_1 = myTeam.map((player) => getCharacterInfo(player)).join("&&");
 
-      data.players_2 = theirTeam.map((player) => { return player.displayName }).join(" + ")
-      data.sets_2 = theirTeam[0].connectCode;
+      data.sets_1 = myTeamCode;
+
+      data.players_2 = theirTeam.map((player) => getCharacterInfo(player)).join("&&");
+
+      data.sets_2 = theirTeamCode;
     }
   }
   else {
@@ -200,13 +219,12 @@ async function setNames(data: scoreboard, gameSettings: GameStartType) {
     if (data.sets_2 != gameSettings.players[theirIndex].connectCode
         || data.sets_1 != gameSettings.players[myIndex].connectCode) {
         resetScore(data);
-        data.players_1 = gameSettings.players[myIndex].displayName;
+        data.players_1 = getCharacterInfo(gameSettings.players[myIndex])
         data.sets_1 = gameSettings.players[myIndex].connectCode;
-        data.players_2 = gameSettings.players[theirIndex].displayName;
+        data.players_2 = getCharacterInfo(gameSettings.players[theirIndex])
         data.sets_2 = gameSettings.players[theirIndex].connectCode;
     }
   }
-
 
   await updateScoreboard(docRef, data);
 }
