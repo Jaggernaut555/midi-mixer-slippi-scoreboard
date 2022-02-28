@@ -35,6 +35,11 @@
       "required": true,
       "type": "text",
       "fallback": "No directory"
+    },
+    "testingMode":{
+      "label": "Testing Mode",
+      "type": "toggle",
+      "fallback": false
     }
   },
   "author": "Jaggernaut"

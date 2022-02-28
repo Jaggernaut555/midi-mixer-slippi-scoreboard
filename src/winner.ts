@@ -1,7 +1,7 @@
 import { GameEndType, PlayerType, PostFrameUpdateType, PreFrameUpdateType, SlippiGame } from "@slippi/slippi-js";
 import { DocumentReference } from "firebase/firestore/lite";
 import _ from "lodash";
-import { getMyIndex, getMyPort, getTeamIndex, getTeams } from ".";
+import { getPlayerIndex, getPlayerPort, getTeamIndex, getTeams } from ".";
 import { getScoreboard, updateScoreboard } from "./scoreboard";
 
 const LEFTSCORE = 0;
@@ -29,10 +29,10 @@ export function determineWinner(game: SlippiGame): number {
         [playerStocks, oppStocks] = determineTeamWinner(game);
     }
     else {
-        const myIndex = getMyIndex(gameSettings);
-        const theirIndex = 1 - myIndex;
-        playerStocks = _.get(latestFrame, [myIndex, 'post', 'stocksRemaining']);
-        oppStocks = _.get(latestFrame, [theirIndex, 'post', 'stocksRemaining']);
+        const playerIndex = getPlayerIndex(gameSettings);
+        const oppIndex = 1 - playerIndex;
+        playerStocks = _.get(latestFrame, [playerIndex, 'post', 'stocksRemaining']);
+        oppStocks = _.get(latestFrame, [oppIndex, 'post', 'stocksRemaining']);
     }
 
     switch (end.gameEndMethod) {
@@ -73,14 +73,14 @@ function determineTeamWinner(game: SlippiGame) {
         throw new Error("Current game does not exist");
     }
 
-    let myPort = getMyPort(gameSettings)
-    let [myTeam, theirTeam] = getTeams(myPort, gameSettings);
+    let playerPort = getPlayerPort(gameSettings)
+    let [playerTeam, oppTeam] = getTeams(playerPort, gameSettings);
 
     const latestFrame = _.get(game.getLatestFrame(), 'players') || [];
-    const myStocks = getTeamStockCount(latestFrame, myTeam);
-    const theirStocks = getTeamStockCount(latestFrame, theirTeam);
+    const playerStocks = getTeamStockCount(latestFrame, playerTeam);
+    const oppStocks = getTeamStockCount(latestFrame, oppTeam);
 
-    return [myStocks, theirStocks];
+    return [playerStocks, oppStocks];
 }
 
 interface FrameData {

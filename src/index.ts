@@ -32,7 +32,7 @@ export interface scoreboard {
   [prop: string]: any,
 }
 
-let settings: Record<string,any>
+let settings: Record<string, any>
 
 let options: FirebaseOptions = {
   projectId: "eightway-io",
@@ -43,8 +43,9 @@ let docRef: DocumentReference<DocumentData>;
 
 let currentGame: SlippiGame
 let currentGameWatcher: chokidar.FSWatcher;
-let myCode: string;
+let playerCode: string;
 let replayWatcher: chokidar.FSWatcher | null;
+let testingMode: false;
 
 async function init() {
   settings = await $MM.getSettings();
@@ -53,18 +54,44 @@ async function init() {
   let packageKey = settings["packagekey"];
   let pageKey = settings["pagekey"];
   let slippiFolder = settings["slippidirectory"];
-  myCode = settings["connectcode"];
+  playerCode = settings["connectcode"];
+  testingMode = settings["testingMode"];
 
   docRef = doc(fs, "scoreboard", packageKey, pageKey, "fields")
   console.log("loaded config");
 
   replayWatcher = chokidar.watch(`${slippiFolder}\\**\\*.slp`,
-        {
-            persistent: true,
-            // Polling uses more CPU than necessary
-            // usePolling: true,
-            ignoreInitial: true,
-        }).on('add', watchForNewReplays);
+    {
+      persistent: true,
+      // Polling uses more CPU than necessary
+      // usePolling: true,
+      ignoreInitial: true,
+      ignored: [`${slippiFolder}\\Spectate\\**`],
+    }).on('add', watchForNewReplays);
+}
+
+async function initSpectate() {
+  settings = await $MM.getSettings();
+
+  // package then page
+  let packageKey = settings["packagekey"];
+  let pageKey = settings["pagekey"];
+  let slippiFolder = settings["slippidirectory"];
+  playerCode = settings["connectcode"];
+  testingMode = settings["testingMode"];
+
+  docRef = doc(fs, "scoreboard", packageKey, pageKey, "fields")
+  console.log("loaded config");
+  console.log("Waiting for spectator replay");
+
+  replayWatcher = chokidar.watch(`${slippiFolder}\\Spectate\\*.slp`,
+    {
+      persistent: true,
+      // Polling uses more CPU than necessary
+      // usePolling: true,
+      ignoreInitial: true,
+      ignored: [],
+    }).on('add', watchForNewReplays);
 }
 
 async function deactivate() {
@@ -81,7 +108,7 @@ function watchForNewReplays(path: string, stats: string) {
 
   // Don't track games that are already over
   const end = game.getGameEnd();
-  if (end) {
+  if (end && !testingMode) {
     console.log("Skipping completed game");
     return;
   }
@@ -107,7 +134,7 @@ function watchForNewReplays(path: string, stats: string) {
     return;
   }
 
-  currentGameWatcher = chokidar.watch(gamePath).on('change', GameListener );
+  currentGameWatcher = chokidar.watch(gamePath).on('change', GameListener);
 }
 
 function trackNewGame() {
@@ -115,33 +142,33 @@ function trackNewGame() {
   const settings = currentGame.getSettings();
 
   if (settings === null) {
-      console.log("No game found");
+    console.log("No game found");
   }
   else {
-      $MM.setSettingsStatus("slippistatus", "Tracking game")
-      getScoreboard(docRef).then(sb => {
-          setNames(sb, settings);
-      });
+    $MM.setSettingsStatus("slippistatus", "Tracking game")
+    getScoreboard(docRef).then(sb => {
+      setNames(sb, settings);
+    });
   }
 }
 
-export function getMyIndex(slippiData: GameStartType): number {
-  for(let player of slippiData.players) {
-    if (player.connectCode == myCode) {
+export function getPlayerIndex(slippiData: GameStartType): number {
+  for (let player of slippiData.players) {
+    if (player.connectCode == playerCode) {
       return player.port - 1;
     }
   }
-  // If I'm not there default to 0
+  // If code not found default to 0
   return 0;
 }
 
-export function getMyPort(slippiData: GameStartType): number {
-  for(let player of slippiData.players) {
-    if (player.connectCode == myCode) {
+export function getPlayerPort(slippiData: GameStartType): number {
+  for (let player of slippiData.players) {
+    if (player.connectCode == playerCode) {
       return player.port;
     }
   }
-  // If I'm not there default to 1
+  // If code not found default to 1
   return 1;
 }
 
@@ -181,67 +208,86 @@ function getCharacterInfo(player: PlayerType): string {
 async function setNames(data: scoreboard, gameSettings: GameStartType) {
   // Check if sets names are player connect codes
   // If new names reset set and score counts
-  // Prefer my code on players_1 side
+  // Prefer provided code on players_1 side
 
-  let myIndex = getMyIndex(gameSettings);
+  let playerIndex = getPlayerIndex(gameSettings);
 
   if (gameSettings.players.length === 4) {
     // teams
     // Can be any order
-    let myPort = getMyPort(gameSettings)
+    let playerPort = getPlayerPort(gameSettings)
 
-    let [myTeam, theirTeam] = getTeams(myPort, gameSettings);
+    let [playerTeam, oppTeam] = getTeams(playerPort, gameSettings);
 
     // Create codes for each team
-    let myTeamCode = myTeam.map((player) => {
+    let playerTeamCode = playerTeam.map((player) => {
       return player.connectCode;
     }).join("&&");
-    let theirTeamCode = theirTeam.map((player) => {
+    let oppTeamCode = oppTeam.map((player) => {
       return player.connectCode;
     }).join("&&");
 
-    if (data.sets_1 != myTeamCode || data.sets_2 != theirTeamCode) {
+    // Reset scores if teams change
+    if (data.sets_1 != playerTeamCode || data.sets_2 != oppTeamCode) {
       resetScore(data);
+    }
 
-      data.players_1 = myTeam.map((player) => getCharacterInfo(player)).join("&&");
+    let playerTeamInfo = playerTeam.map((player) => getCharacterInfo(player)).join("&&");
+    let oppTeamInfo = oppTeam.map((player) => getCharacterInfo(player)).join("&&");
 
-      data.sets_1 = myTeamCode;
+    // Update character or team changes
+    if (playerTeamInfo !== data.players_1 || oppTeamInfo !== data.players_2) {
+      data.players_1 = playerTeam.map((player) => getCharacterInfo(player)).join("&&");
+      data.sets_1 = playerTeamCode;
 
-      data.players_2 = theirTeam.map((player) => getCharacterInfo(player)).join("&&");
-
-      data.sets_2 = theirTeamCode;
+      data.players_2 = oppTeam.map((player) => getCharacterInfo(player)).join("&&");
+      data.sets_2 = oppTeamCode;
     }
   }
   else {
     // Only 2 players
-    let theirIndex = 1 - myIndex;
-  
-    if (data.sets_2 != gameSettings.players[theirIndex].connectCode
-        || data.sets_1 != gameSettings.players[myIndex].connectCode) {
-        resetScore(data);
-        data.players_1 = getCharacterInfo(gameSettings.players[myIndex])
-        data.sets_1 = gameSettings.players[myIndex].connectCode;
-        data.players_2 = getCharacterInfo(gameSettings.players[theirIndex])
-        data.sets_2 = gameSettings.players[theirIndex].connectCode;
-    }
-  }
+    let oppIndex = 1 - playerIndex;
 
+    // If new connect code reset the scores
+    if (data.sets_2 != gameSettings.players[oppIndex].connectCode
+      || data.sets_1 != gameSettings.players[playerIndex].connectCode) {
+      resetScore(data);
+    }
+    
+    let playerCharacterInfo = getCharacterInfo(gameSettings.players[playerIndex])
+    let oppCharacterInfo = getCharacterInfo(gameSettings.players[oppIndex])
+
+    // update player/character changes
+    if (playerCharacterInfo !== data.players_1 || oppCharacterInfo !== data.players_2) {
+      data.players_1 = playerCharacterInfo;
+      data.sets_1 = gameSettings.players[playerIndex].connectCode;
+      data.players_2 = oppCharacterInfo;
+      data.sets_2 = gameSettings.players[oppIndex].connectCode;
+    }
+
+  }
+  
   await updateScoreboard(docRef, data);
+
+  if (testingMode) {
+    updateWinner(docRef, currentGame);
+    console.log(currentGame);
+  }
 }
 
 
 function GameListener(event: string) {
   try {
-      const end = currentGame.getGameEnd();
-      if (end) {
-          console.log("Game ended");
-          $MM.setSettingsStatus("slippistatus", "Waiting for game")
-          updateWinner(docRef, currentGame);
-          currentGameWatcher.off('change', GameListener);
-      }
+    const end = currentGame.getGameEnd();
+    if (end) {
+      console.log("Game ended");
+      $MM.setSettingsStatus("slippistatus", "Waiting for game")
+      updateWinner(docRef, currentGame);
+      currentGameWatcher.off('change', GameListener);
+    }
   }
   catch (error) {
-      console.log(error);
+    console.log(error);
   }
 }
 
@@ -249,13 +295,12 @@ const runButton = new ButtonType("RunButton", {
   name: "Toggle slippi tracking",
   active: false,
 });
-
 runButton.on("pressed", () => {
   runButton.active = !runButton.active;
   if (runButton.active) {
     // activate tracking
     $MM.setSettingsStatus("slippistatus", "Waiting for game")
-  
+
     init();
   }
   else {
@@ -263,4 +308,23 @@ runButton.on("pressed", () => {
     $MM.setSettingsStatus("slippistatus", "Not running")
     deactivate();
   }
-})
+});
+
+const spectateButton = new ButtonType("SpectateButton", {
+  name: "Toggle slippi spcetator tracking",
+  active: false,
+});
+spectateButton.on("pressed", () => {
+  spectateButton.active = !spectateButton.active;
+  if (spectateButton.active) {
+    // activate tracking
+    $MM.setSettingsStatus("slippistatus", "Waiting to spectate game")
+
+    initSpectate();
+  }
+  else {
+    // deactivate tracking
+    $MM.setSettingsStatus("slippistatus", "Not running")
+    deactivate();
+  }
+});
