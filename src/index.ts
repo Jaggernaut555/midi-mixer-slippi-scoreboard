@@ -270,8 +270,8 @@ async function setNames(data: scoreboard, gameSettings: GameStartType) {
   await updateScoreboard(docRef, data);
 
   if (testingMode) {
-    updateWinner(docRef, currentGame);
     console.log(currentGame);
+    updateWinner(docRef, currentGame);
   }
 }
 
