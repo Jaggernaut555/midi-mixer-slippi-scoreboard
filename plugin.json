@@ -12,31 +12,31 @@
       "type": "status",
       "fallback": "Not running"
     },
-    "packagekey":{
+    "packagekey": {
       "label": "Package Key",
       "required": true,
       "type": "password",
       "fallback": "No API Key"
     },
-    "pagekey":{
+    "pagekey": {
       "label": "Page Key",
       "required": true,
       "type": "password",
       "fallback": "No API Key"
     },
-    "connectcode":{
+    "connectcode": {
       "label": "Connect Code",
       "required": true,
       "type": "text",
       "fallback": "No Code"
     },
-    "slippidirectory":{
+    "slippidirectory": {
       "label": "Slippi Directory",
       "required": true,
       "type": "text",
       "fallback": "No directory"
     },
-    "testingMode":{
+    "testingMode": {
       "label": "Testing Mode",
       "type": "toggle",
       "fallback": false
