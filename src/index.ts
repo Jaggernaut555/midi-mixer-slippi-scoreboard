@@ -172,13 +172,6 @@ export function getPlayerPort(slippiData: GameStartType): number {
   return 1;
 }
 
-export function getTeamIndex(pIndex: number): number {
-  if (pIndex < 2) {
-    return 0;
-  }
-  return 1;
-}
-
 export function getTeams(playerPort: number, slippiData: GameStartType) {
   let players = slippiData.players;
 
