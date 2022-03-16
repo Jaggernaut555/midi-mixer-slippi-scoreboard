@@ -20,5 +20,13 @@ export function resetScore(data: Scoreboard) {
 }
 
 export async function updateScoreboard(docRef: DocumentReference, scoreboard: Scoreboard) {
-    await setDoc(docRef, scoreboard);
+    try {
+        await setDoc(docRef, scoreboard);
+    }
+    catch (err: any) {
+        console.error("Error updating scoreboard");
+        console.log(err);
+        log.error(err);
+        $MM.showNotification("Error determining winner");
+    }
 }
