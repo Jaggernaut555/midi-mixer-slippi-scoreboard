@@ -1,13 +1,23 @@
 import { DocumentReference, getDoc, setDoc } from "firebase/firestore/lite";
 import { scoreboard as Scoreboard } from ".";
 
-export async function getScoreboard(docRef: DocumentReference): Promise<Scoreboard> {
-    const scoreSnapshot = await getDoc(docRef);
-    if (scoreSnapshot.exists()) {
-        return scoreSnapshot.data() as Scoreboard;
+export async function getScoreboard(docRef: DocumentReference, retry: boolean = true): Promise<Scoreboard> {
+    try {
+        const scoreSnapshot = await getDoc(docRef);
+        if (scoreSnapshot.exists()) {
+            return scoreSnapshot.data() as Scoreboard;
+        }
+        else {
+            console.log("failed");
+        }
     }
-    else {
-        console.log("failed");
+    catch (err) {
+        console.log(err);
+        log.error(err);
+        if (retry) {
+            console.log("retrying");
+            return getScoreboard(docRef, false);
+        }
     }
     return null as any;
 }
