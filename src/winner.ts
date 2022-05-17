@@ -117,13 +117,16 @@ export function updateWinner(docRef: DocumentReference, game: SlippiGame) {
     }
     // get scoreboard
     // increase score
+    // For some reason need to make sure they're numbers. Sometimes 8wr saves them as strings
     getScoreboard(docRef).then((s) => {
         if (i === LEFTSCORE) {
             // I win
+            s.players_1s = Number(s.players_1s)
             s.players_1s += 1;
         }
         else {
             // they win
+            s.players_2s = Number(s.players_2s)
             s.players_2s += 1;
         }
         updateScoreboard(docRef, s);
