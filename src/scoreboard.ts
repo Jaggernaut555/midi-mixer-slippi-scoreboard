@@ -27,6 +27,8 @@ export function resetScore(data: Scoreboard) {
     data.sets_2s = 0;
     data.players_1s = 0;
     data.players_2s = 0;
+    data.WL_1 = "[W]";
+    data.WL_2 = "[W]";
 }
 
 export async function updateScoreboard(docRef: DocumentReference, scoreboard: Scoreboard) {

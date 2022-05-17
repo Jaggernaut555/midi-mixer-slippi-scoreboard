@@ -27,6 +27,9 @@ export interface scoreboard {
   players_1: string | null,
   players_2s: number,
   players_2: string | null,
+  // Winners/Losers indicator
+  WL_1: "[W]" | "[L]",
+  WL_2: "[W]" | "[L]",
 
   // Include any unknown fields that I don't care about modifying but don't want to lose
   [prop: string]: any,
